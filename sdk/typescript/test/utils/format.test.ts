@@ -356,16 +356,39 @@ describe("anthropicToOpenAI", () => {
     ]);
     expect(result).toHaveLength(2);
     expect(result[0]).toEqual({
+      role: "tool",
+      content: "ok",
+      tool_call_id: "tu_1",
+    });
+    expect(result[1]).toEqual({
       role: "user",
       content: [
         { type: "image_url", image_url: { url: "data:image/png;base64,CCCC" } },
       ],
     });
-    expect(result[1]).toEqual({
-      role: "tool",
-      content: "ok",
-      tool_call_id: "tu_1",
-    });
+  });
+
+  it("emits tool messages before text from the same user turn", () => {
+    const result = anthropicToOpenAI([
+      {
+        role: "assistant",
+        content: [{ type: "tool_use", id: "tu_1", name: "search", input: {} }],
+      },
+      {
+        role: "user",
+        content: [
+          { type: "tool_result", tool_use_id: "tu_1", content: "ok" },
+          { type: "text", text: "now summarize" },
+        ],
+      },
+    ]);
+    // The tool message must directly follow the assistant tool_calls turn.
+    expect(result.map((m) => m.role)).toEqual(["assistant", "tool", "user"]);
+    // Converting back keeps tool_result ahead of the text.
+    expect(openAIToAnthropic(result).slice(1)).toEqual([
+      { role: "user", content: [{ type: "tool_result", tool_use_id: "tu_1", content: "ok" }] },
+      { role: "user", content: "now summarize" },
+    ]);
   });
 
   it("drops an unconvertible lone image block (no usable url) rather than pushing a broken part", () => {

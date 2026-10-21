@@ -99,6 +99,21 @@ export function anthropicToOpenAI(messages: any[]): OpenAIMessage[] {
       }
       if (Array.isArray(msg.content)) {
         const toolResults = msg.content.filter((b: any) => b.type === "tool_result");
+        // Tool messages go first: OpenAI needs them right after the assistant
+        // tool_calls turn, and on the way back Anthropic needs tool_result
+        // blocks to lead the user turn, before any text or image.
+        for (const tr of toolResults) {
+          const content = typeof tr.content === "string"
+            ? tr.content
+            : Array.isArray(tr.content)
+              ? tr.content.map((b: any) => b.text ?? JSON.stringify(b)).join("\n")
+              : JSON.stringify(tr.content);
+          result.push({
+            role: "tool",
+            content,
+            tool_call_id: tr.tool_use_id,
+          });
+        }
         const hasImages = msg.content.some((b: any) => b.type === "image");
 
         if (hasImages) {
@@ -122,18 +137,6 @@ export function anthropicToOpenAI(messages: any[]): OpenAIMessage[] {
               content: textBlocks.map((b: any) => b.text).join("\n"),
             });
           }
-        }
-        for (const tr of toolResults) {
-          const content = typeof tr.content === "string"
-            ? tr.content
-            : Array.isArray(tr.content)
-              ? tr.content.map((b: any) => b.text ?? JSON.stringify(b)).join("\n")
-              : JSON.stringify(tr.content);
-          result.push({
-            role: "tool",
-            content,
-            tool_call_id: tr.tool_use_id,
-          });
         }
       }
       continue;
