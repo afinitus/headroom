@@ -55,9 +55,6 @@ export class SharedContext {
     content: string,
     options?: { agent?: string },
   ): Promise<ContextEntry> {
-    this.evictExpired();
-    this.evictIfFull();
-
     const messages = [{ role: "user" as const, content }];
     let result: CompressResult;
     try {
@@ -98,6 +95,12 @@ export class SharedContext {
           : 0,
     };
 
+    // Evict synchronously right before the write (after the await), so puts
+    // that finished while this one was compressing are counted against the cap.
+    this.evictExpired();
+    this.evictIfFull(key);
+    // Re-insert so Map order stays oldest-write-first for evictIfFull.
+    this.entries.delete(key);
     this.entries.set(key, entry);
     return entry;
   }
@@ -179,10 +182,14 @@ export class SharedContext {
     }
   }
 
-  private evictIfFull(): void {
+  private evictIfFull(incomingKey?: string): void {
+    // Updating an existing key does not grow the map, so it must not evict an
+    // unrelated entry (mirrors the Python fix in #2136).
+    if (incomingKey !== undefined && this.entries.has(incomingKey)) return;
     while (this.entries.size >= this.maxEntries) {
       const oldest = this.entries.keys().next().value;
-      if (oldest !== undefined) this.entries.delete(oldest);
+      if (oldest === undefined) break;
+      this.entries.delete(oldest);
     }
   }
 }
