@@ -14,6 +14,18 @@ interface GeminiModelLike {
   [key: string]: any;
 }
 
+// `generateContent()` also takes a bare prompt string or an array of
+// `string | Part` (one user turn). Only a `Content[]` conversation is
+// compressed; anything else goes through untouched, since format detection
+// cannot read a string as a message.
+function isContents(value: any): value is any[] {
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every((c: any) => c !== null && typeof c === "object" && Array.isArray(c.parts))
+  );
+}
+
 /**
  * Wrap a Google Generative AI model to auto-compress before each request.
  *
@@ -39,6 +51,9 @@ export function withHeadroom<T extends GeminiModelLike>(
 
   const compressedGenerate = async (params: any) => {
     const contents = params.contents ?? params;
+    if (!isContents(Array.isArray(contents) ? contents : [contents])) {
+      return originalGenerate(params);
+    }
     const modelName = options.model ?? "gemini-2.0-flash";
 
     // compress() auto-detects Gemini format
@@ -57,6 +72,9 @@ export function withHeadroom<T extends GeminiModelLike>(
   const compressedStream = originalStream
     ? async (params: any) => {
         const contents = params.contents ?? params;
+        if (!isContents(Array.isArray(contents) ? contents : [contents])) {
+          return originalStream(params);
+        }
         const modelName = options.model ?? "gemini-2.0-flash";
 
         const result = await compress(
