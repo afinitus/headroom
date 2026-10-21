@@ -206,6 +206,25 @@ describe("SharedContext eviction", () => {
     expect(ctx.keys()).toEqual(["second", "third"]);
     expect(ctx.get("first")).toBeNull();
   });
+
+  it("updating an existing key at capacity does not evict another entry", async () => {
+    mockFetch.mockResolvedValue(mockCompressResponse("data"));
+
+    const ctx = new SharedContext({
+      baseUrl: "http://test:8787",
+      maxEntries: 2,
+    });
+    await ctx.put("first", "data");
+    await ctx.put("second", "data");
+    await ctx.put("second", "data UPDATED"); // update, not an insert
+
+    expect(ctx.keys()).toEqual(["first", "second"]);
+    expect(ctx.get("second", { full: true })).toBe("data UPDATED");
+
+    await ctx.put("first", "data UPDATED"); // "second" is now the oldest write
+    await ctx.put("third", "data");
+    expect(ctx.keys()).toEqual(["first", "third"]);
+  });
 });
 
 describe("SharedContext clear", () => {
