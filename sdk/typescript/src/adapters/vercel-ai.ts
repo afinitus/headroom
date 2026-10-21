@@ -39,6 +39,7 @@ export function headroomMiddleware(options: CompressOptions = {}) {
   return {
     transformParams: async ({
       params,
+      model: languageModel,
     }: {
       params: any;
       model: any;
@@ -47,7 +48,9 @@ export function headroomMiddleware(options: CompressOptions = {}) {
       const prompt: VercelMessage[] = params.prompt;
       if (!prompt || prompt.length === 0) return params;
 
-      const model = options.model ?? params.modelId ?? "gpt-4o";
+      // Call options carry no model id; the wrapped model does.
+      const model =
+        options.model ?? languageModel?.modelId ?? params.modelId ?? "gpt-4o";
 
       // Convert Vercel format → OpenAI format
       const openaiMessages = vercelToOpenAI(prompt);
