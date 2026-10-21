@@ -194,4 +194,21 @@ describe("Gemini withHeadroom", () => {
 
     expect(mockModel.generateContent).toHaveBeenCalledWith({ contents });
   });
+
+  it("passes a bare prompt string or part array through untouched", async () => {
+    const mockModel = {
+      generateContent: vi.fn().mockResolvedValue({}),
+      generateContentStream: vi.fn().mockResolvedValue({}),
+    };
+    const wrapped = withHeadroom(mockModel, { baseUrl: "http://test:8787" });
+
+    await wrapped.generateContent("Write a story about a cat");
+    expect(mockModel.generateContent).toHaveBeenCalledWith("Write a story about a cat");
+
+    const parts = ["what is this?", { inlineData: { mimeType: "image/png", data: "AAAA" } }];
+    await wrapped.generateContentStream(parts);
+    expect(mockModel.generateContentStream).toHaveBeenCalledWith(parts);
+
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
 });
