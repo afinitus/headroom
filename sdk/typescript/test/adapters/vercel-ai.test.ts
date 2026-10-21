@@ -134,6 +134,28 @@ describe("headroomMiddleware", () => {
     const body = JSON.parse(mockFetch.mock.calls[0][1].body);
     expect(body.model).toBe("claude-sonnet-4-5-20250929");
   });
+
+  it("takes the model id from the wrapped model, not the call params", async () => {
+    mockFetch.mockResolvedValueOnce(
+      mockCompressResponse([{ role: "user", content: "x" }]),
+    );
+
+    const mw = headroomMiddleware({ baseUrl: "http://localhost:8787" });
+
+    // Real call options have no modelId; the AI SDK passes the model alongside.
+    await mw.transformParams!({
+      params: {
+        prompt: [
+          { role: "user", content: [{ type: "text", text: "hi" }] },
+        ],
+      } as any,
+      model: { modelId: "claude-sonnet-4-5-20250929" } as any,
+      type: "generate",
+    });
+
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+    expect(body.model).toBe("claude-sonnet-4-5-20250929");
+  });
 });
 
 describe("compressVercelMessages", () => {
